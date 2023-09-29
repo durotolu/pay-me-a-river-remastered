@@ -29,7 +29,8 @@ import { ChevronDownIcon } from "@radix-ui/react-icons";
 */
 export default function WalletSelector(props: { isTxnInProgress?: boolean }) {
   // wallet state variables
-  const { connect, account, connected, disconnect, wallets, isLoading } = useWallet();
+  const { connect, account, connected, disconnect, wallets, isLoading } =
+    useWallet();
   // State to hold the current account's APT balance. In string - floating point format.
   const [balance, setBalance] = useState<string | undefined>(undefined);
   // State to hold whether the faucet is loading or not.
@@ -60,7 +61,7 @@ export default function WalletSelector(props: { isTxnInProgress?: boolean }) {
             an object that contains `error_code` of `account_not_found`, call the initializeAccount
             function to initialize the account.
     */
-  }
+  };
 
   /* 
     Initializes the account by funding it with 1 APT.
@@ -70,21 +71,17 @@ export default function WalletSelector(props: { isTxnInProgress?: boolean }) {
       TODO #6: Return if the wallet is not connected, the account is not defined, a transaction is 
       in progress, or the faucet is loading.
     */
-
     /* 
       TODO #7: Set the isFaucetLoading state variable to prevent this function from being called again.
     */
-
     /* 
       TODO #8: Create a new faucet client with the testnet network and faucet url. Then, call the
       fundAccount function to fund the account with 1 APT. Catch any errors that occur. 
     */
-
     /* 
       TODO #9: Set the isFaucetLoading state variable to false. 
     */
-
-  }
+  };
 
   /*
     Gets the balance of the given address. In case of an error, the balance is set to 0. The balance
@@ -104,6 +101,10 @@ export default function WalletSelector(props: { isTxnInProgress?: boolean }) {
     */
   };
 
+  const handleConnect = (walletName: string) => {
+    // connect(walletName as string);
+  };
+
   return (
     <div>
       {!connected && !isLoading && (
@@ -116,8 +117,7 @@ export default function WalletSelector(props: { isTxnInProgress?: boolean }) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Connect your wallet</DialogTitle>
-              {
-                /* 
+              {/* 
                   TODO #1: Return a list of all supported wallets. If the wallet is installed, display
                   a button to connect the wallet. If the wallet is not installed, display a button 
                   to install the wallet. 
@@ -152,14 +152,33 @@ export default function WalletSelector(props: { isTxnInProgress?: boolean }) {
                       </Button>
                     </a>
                   </div>
-                */
-              }
+                */}
+              {wallets.map((wallet, index) => (
+                <div
+                  key={wallet.name}
+                  className="flex w-full items-center justify-between rounded-xl p-2"
+                >
+                  <h1>{wallet.name}</h1>
+                  {wallet.readyState === WalletReadyState.Installed && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleConnect(wallet.name)}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                  {wallet.readyState === WalletReadyState.NotDetected && (
+                    <a href={wallet.url} target="_blank">
+                      <Button variant="secondary">Install</Button>
+                    </a>
+                  )}
+                </div>
+              ))}
             </DialogHeader>
           </DialogContent>
         </Dialog>
       )}
-      {
-        /* 
+      {/* 
           TODO #4: Display a loading button if the wallet is currently loading
 
           HINT: 
@@ -170,10 +189,8 @@ export default function WalletSelector(props: { isTxnInProgress?: boolean }) {
           <Button variant="secondary" disabled>
             Loading...
           </Button>
-        */
-      }
-      {
-        /* 
+        */}
+      {/* 
           TODO #2: Display the wallet's APT balance and address if the wallet is connected and the 
                 account is defined. Use the component below to display the wallet's APT balance and 
                 address, as well as provide the disconnect button. 
@@ -199,8 +216,7 @@ export default function WalletSelector(props: { isTxnInProgress?: boolean }) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        */
-      }
+        */}
     </div>
   );
 }
