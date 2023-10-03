@@ -20,6 +20,8 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { sleep } from "@/lib/utils";
+import { Types } from "aptos";
 
 export type Stream = {
   sender: string;
@@ -42,6 +44,10 @@ export default function CreatedStreamList(props: {
   const [streams, setStreams] = useState<Stream[]>([]);
   const [areStreamsLoading, setAreStreamsLoading] = useState(true);
 
+  function formatAmount(amount: number, decimalPlaces: number = 2): string {
+    return amount.toFixed(decimalPlaces) + " APT";
+  }
+
   /* 
     Retrieve the streams from the module and set the streams state.
   */
@@ -61,11 +67,11 @@ export default function CreatedStreamList(props: {
     /*
       TODO #7: Validate the account is defined before continuing. If not, return.
     */
-
+    if (!account) return;
     /* 
       TODO #8: Set the isTxnInProgress state to true. This will display the loading spinner.
     */
-
+    props.setTxn(true);
     /*
       TODO #9: Make a request to the entry function `cancel_stream` to cancel the stream. 
       
@@ -90,11 +96,41 @@ export default function CreatedStreamList(props: {
         ),
       });
     */
+    const body: Types.TransactionPayload = {
+      type: "entry_function_payload",
+      function: `${process.env.MODULE_ADDRESS}::${process.env.MODULE_NAME}::cancel_stream`,
+      type_arguments: [],
+      arguments: [recipient, account.address],
+    };
 
+    let response;
+    try {
+      response = await signAndSubmitTransaction(body);
+      await sleep(parseInt(process.env.TRANSACTION_DELAY_MILLISECONDS || "0"));
+    } catch (error) {
+      props.setTxn(false);
+      return;
+    }
+    const data = await response.json();
+    toast({
+      title: "Stream closed!",
+      description: `Closed stream for ${`${recipient.slice(
+        0,
+        6
+      )}...${recipient.slice(-4)}`}`,
+      action: (
+        <a
+          href={`https://explorer.aptoslabs.com/txn/${data.hash}?network=testnet`}
+          target="_blank"
+        >
+          <ToastAction altText="View transaction">View txn</ToastAction>
+        </a>
+      ),
+    });
     /*
       TODO #10: Set the isTxnInProgress state to false. This will hide the loading spinner.
     */
-
+    props.setTxn(false);
   };
 
   /* 
@@ -104,12 +140,30 @@ export default function CreatedStreamList(props: {
     /*
       TODO #4: Validate the account is defined before continuing. If not, return.
     */
-
+    if (!account) return [];
     /*
       TODO #5: Make a request to the view function `get_senders_streams` to retrieve the streams sent by 
             the user.
     */
-
+    const body = {
+      function: `${process.env.MODULE_ADDRESS}::${process.env.MODULE_NAME}::get_senders_streams`,
+      type_arguments: [],
+      arguments: [account.address],
+    };
+    let res;
+    try {
+      res = await fetch(`https://fullnode.testnet.aptoslabs.com/v1/view`, {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+    } catch (e) {
+      console.log(e);
+      return [];
+    }
     /* 
       TODO #6: Parse the response from the view request and create the streams array using the given 
             data. Return the new streams array.
@@ -117,8 +171,25 @@ export default function CreatedStreamList(props: {
       HINT:
         - Remember to convert the amount to floating point number
     */
-    
-    return []; // PLACEHOLDER: Remove this line
+    const data = await res.json();
+
+    if (data[0].length > 0) {
+      const streams: Stream[] = [];
+      for (let i = 0; i < data[0].length; i++) {
+        let streamObj = {
+          recipient: data[0][i],
+          sender: account.address,
+          startTimestampMilliseconds: data[1][i],
+          durationMilliseconds: data[2][i],
+          amountAptFloat: data[3][i] / 100000000,
+          streamId: data[4][i],
+        };
+        streams.push(streamObj);
+      }
+      return streams;
+    } else {
+      return [];
+    }
   };
 
   return (
@@ -135,8 +206,7 @@ export default function CreatedStreamList(props: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {
-              /* 
+            {/* 
                 TODO #1: Add a skeleton loader when the streams are loading. Use the provided Skeleton component.
 
                 HINT:
@@ -170,10 +240,37 @@ export default function CreatedStreamList(props: {
                     </div>
                   </TableCell>
                 </TableRow>
-              */
-            }
-            {
-              /* 
+              */}
+            {areStreamsLoading && (
+              <TableRow>
+                <TableCell className="items-center">
+                  <div className="flex flex-row justify-center items-center w-full">
+                    <Skeleton className="h-4 w-4" />
+                  </div>
+                </TableCell>
+                <TableCell className="items-center">
+                  <div className="flex flex-row justify-center items-center w-full">
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </TableCell>
+                <TableCell className="items-center">
+                  <div className="flex flex-row justify-center items-center w-full">
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </TableCell>
+                <TableCell className="items-center">
+                  <div className="flex flex-row justify-center items-center w-full">
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </TableCell>
+                <TableCell className="items-center">
+                  <div className="flex flex-row justify-center items-center w-full">
+                    <Skeleton className="h-8 w-12" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+            {/* 
                 TODO #2: Add a row to the table when there are no streams. Use the provided component
                           to display the message.
 
@@ -189,10 +286,17 @@ export default function CreatedStreamList(props: {
                     </p>
                   </TableCell>
                 </TableRow>
-              */
-            }
-            {
-              /* 
+              */}
+            {!areStreamsLoading && !streams.length && (
+              <TableRow className="hover:bg-neutral-400">
+                <TableCell colSpan={5}>
+                  <p className="break-normal text-center font-matter py-4 text-neutral-100">
+                    You don&apos;t have any outgoing payments.
+                  </p>
+                </TableCell>
+              </TableRow>
+            )}
+            {/* 
                 TODO #3: Add a row to the table for each stream in the streams array. Use the provided
                           component to display the stream information.
 
@@ -297,8 +401,115 @@ export default function CreatedStreamList(props: {
                     </Button>
                   </TableCell>
                 </TableRow>
-              */
-            }
+              */}
+            {!areStreamsLoading &&
+              streams.length &&
+              streams.map((stream, index) => {
+                const endTimestampMilliseconds =
+                  stream.startTimestampMilliseconds +
+                  stream.durationMilliseconds;
+                const endDate = new Date(endTimestampMilliseconds);
+
+                const currentTimestampMilliseconds = Date.now();
+                const amountRemaining =
+                  currentTimestampMilliseconds <
+                  stream.startTimestampMilliseconds
+                    ? stream.amountAptFloat
+                    : currentTimestampMilliseconds > endTimestampMilliseconds
+                    ? 0
+                    : stream.amountAptFloat -
+                      ((currentTimestampMilliseconds -
+                        stream.startTimestampMilliseconds) /
+                        stream.durationMilliseconds) *
+                        stream.amountAptFloat;
+
+                return (
+                  <TableRow
+                    key={index}
+                    className="font-matter hover:bg-neutral-400"
+                  >
+                    <TableCell className="text-center">
+                      {stream.streamId}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            {`${stream.recipient.slice(
+                              0,
+                              7
+                            )}...${stream.recipient.slice(-4)}`}
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{stream.recipient}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {currentTimestampMilliseconds <
+                      stream.startTimestampMilliseconds ? (
+                        // Stream has not started
+                        <p>
+                          <i>Stream has not started</i>
+                        </p>
+                      ) : (
+                        // Display the end date of the stream
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              {endDate.toLocaleDateString()}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{endDate.toLocaleString()}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-center">
+                      {currentTimestampMilliseconds <
+                      stream.startTimestampMilliseconds ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              {formatAmount(stream.amountAptFloat)}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{formatAmount(stream.amountAptFloat, 8)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : currentTimestampMilliseconds >
+                        endTimestampMilliseconds ? (
+                        <p>0.00 APT</p>
+                      ) : (
+                        <CountUp
+                          start={amountRemaining}
+                          end={0}
+                          duration={stream.durationMilliseconds / 1000}
+                          decimals={8}
+                          decimal="."
+                          suffix=" APT"
+                          useEasing={false}
+                        />
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-center">
+                      <Button
+                        size="sm"
+                        className="bg-red-800 hover:bg-red-700 text-white"
+                        onClick={() =>
+                          cancelStream(stream.recipient)
+                        }
+                      >
+                        Cancel
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
           </TableBody>
         </Table>
       </div>
